@@ -68,6 +68,9 @@ class QueueThread(Thread):
         sys.stdout.flush()
         self.lock.release()
 
+    def log_stats(self, basename, speed, pct_comp, pct_done):
+        self.log(f'{basename:35}: speed: {speed:5.2f}x, comp: {pct_comp:>+3}%, done: {pct_done:>+3}%')
+
     def go(self):
 
         while not self.queue.empty():
@@ -110,7 +113,7 @@ class QueueThread(Thread):
 
                 def log_callback(stats):
                     pct_done, pct_comp = calculate_progress(job.info, stats)
-                    self.log(f'{basename}: speed: {stats["speed"]}x, comp: {pct_comp}%, done: {pct_done:3}%')
+                    self.log_stats(basename, stats['speed'], pct_comp, pct_done)
                     if job.profile.threshold_check < 100:
                         if pct_done >= job.profile.threshold_check and pct_comp < job.profile.threshold:
                             # compression goal (threshold) not met, kill the job and waste no more time...

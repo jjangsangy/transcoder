@@ -186,6 +186,9 @@ class ManagedHost(Thread):
         finally:
             self.lock.release()
 
+    def log_stats(self, basename, speed, pct_comp, pct_done):
+        self.log(f'{basename[:50]:50}: speed: {float(speed):5.2f}x, comp: {pct_comp:>+3}%, done: {pct_done:>+3}%')
+
     def testrun(self):
         pass
 
@@ -217,7 +220,7 @@ class ManagedHost(Thread):
             sshtest = subprocess.run([*self.ssh_cmd(), remote_cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                      shell=False, timeout=5)
             if sshtest.returncode != 0:
-                self.log('ssh test failed with the following output: ' + sshtest.stderr)
+                self.log('ssh test failed with the following output: ' + sshtest.stderr.decode())
                 return False
             return True
         except subprocess.TimeoutExpired:
@@ -294,9 +297,11 @@ class StreamingManagedHost(ManagedHost):
                 #
                 # calculate full input and output paths
                 #
+                filename = os.path.basename(inpath)
+                name, ext = filename.rsplit('.', 1)
                 remote_working_dir = self.props.working_dir
-                remote_inpath = os.path.join(remote_working_dir, os.path.basename(inpath))
-                remote_outpath = os.path.join(remote_working_dir, os.path.basename(inpath) + '.tmp')
+                remote_inpath = os.path.join(remote_working_dir, filename)
+                remote_outpath = os.path.join(remote_working_dir, name + '.h265.' + ext)
 
                 #
                 # build remote ffmpeg commandline
@@ -350,7 +355,7 @@ class StreamingManagedHost(ManagedHost):
 
                 def log_callback(stats):
                     pct_done, pct_comp = calculate_progress(job.media_info, stats)
-                    self.log(f'{basename}: speed: {stats["speed"]}x, comp: {pct_comp}%, done: {pct_done:3}%')
+                    self.log_stats(basename, stats['speed'], pct_comp, pct_done)
                     if _profile.threshold_check < 100:
                         if pct_done >= _profile.threshold_check and pct_comp < _profile.threshold:
                             # compression goal (threshold) not met, kill the job and waste no more time...
@@ -391,12 +396,16 @@ class StreamingManagedHost(ManagedHost):
                         continue
                     self.complete(inpath, (job_stop - job_start).seconds)
 
+                    if verbose:
+                        self.log(f'moving media to {inpath}')
+
+                    tmp_file = os.path.join(os.path.dirname(inpath), os.path.basename(retrieved_copy_name))
+
+                    shutil.move(retrieved_copy_name, tmp_file)
+
                     if not pytranscoder.keep_source:
-                        os.rename(retrieved_copy_name, retrieved_copy_name[0:-4])
-                        retrieved_copy_name = retrieved_copy_name[0:-4]
-                        if verbose:
-                            self.log(f'moving media to {inpath}')
-                        shutil.move(retrieved_copy_name, inpath)
+                        os.remove(inpath)
+
                     self.log(crayons.green(f'Finished {inpath}'))
                 elif code is not None:
                     self.log(crayons.red(f'error during remote transcode of {inpath}'))
@@ -410,8 +419,8 @@ class StreamingManagedHost(ManagedHost):
                     self.run_process([*ssh_cmd, f'"del {remote_outpath}"'])
                     self.run_process([*ssh_cmd, f'"del {remote_inpath}"'])
                 else:
-                    self.run_process([*ssh_cmd, f'"rm {remote_outpath}"'])
-                    self.run_process([*ssh_cmd, f'"rm {remote_inpath}"'])
+                    self.run_process([*ssh_cmd, 'rm', f'"{remote_outpath}"'])
+                    self.run_process([*ssh_cmd, 'rm', f'"{remote_inpath}"'])
 
             finally:
                 self.queue.task_done()
@@ -457,7 +466,7 @@ class MountedManagedHost(ManagedHost):
                 #
                 # calculate paths
                 #
-                outpath = inpath[0:inpath.rfind('.')] + _profile.extension + '.tmp'
+                outpath = inpath[0:inpath.rfind('.')] + '.h265' + _profile.extension
                 remote_inpath = inpath
                 remote_outpath = outpath
                 if self.props.has_path_subst:
@@ -500,7 +509,7 @@ class MountedManagedHost(ManagedHost):
 
                 def log_callback(stats):
                     pct_done, pct_comp = calculate_progress(job.media_info, stats)
-                    self.log(f'{basename}: speed: {stats["speed"]}x, comp: {pct_comp}%, done: {pct_done:3}%')
+                    self.log_stats(basename, stats['speed'], pct_comp, pct_done)
                     if _profile.threshold_check < 100:
                         if pct_done >= _profile.threshold_check and pct_comp < _profile.threshold:
                             # compression goal (threshold) not met, kill the job and waste no more time...
@@ -589,7 +598,7 @@ class LocalHost(ManagedHost):
                 #
                 # calculate paths
                 #
-                outpath = inpath[0:inpath.rfind('.')] + _profile.extension + '.tmp'
+                outpath = inpath[0:inpath.rfind('.')] + '.h265' + _profile.extension
 
                 #
                 # build command line
@@ -626,7 +635,7 @@ class LocalHost(ManagedHost):
 
                 def log_callback(stats):
                     pct_done, pct_comp = calculate_progress(job.media_info, stats)
-                    self.log(f'{basename}: speed: {stats["speed"]}x, comp: {pct_comp}%, done: {pct_done:3}%')
+                    self.log_stats(basename, stats['speed'], pct_comp, pct_done)
                     if _profile.threshold_check < 100:
                         if pct_done >= _profile.threshold_check and pct_comp < _profile.threshold:
                             # compression goal (threshold) not met, kill the job and waste no more time...
@@ -703,7 +712,6 @@ class Cluster(Thread):
             if not hostprops.is_enabled:
                 continue
             hosttype = hostprops.host_type
-
             #
             # make sure Queue exists for name
             #
