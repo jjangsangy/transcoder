@@ -62,7 +62,6 @@ class Rule:
                     if verbose:
                         print(str(ex))
                     exit(0)
-
             if pred in numeric_predicates:
                 comp = media_info.eval_numeric(self.name, pred, value)
                 if not comp and not inverted:

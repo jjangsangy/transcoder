@@ -2,6 +2,7 @@ import importlib
 import math
 import os
 import platform
+import sys
 import subprocess
 from pathlib import Path
 from typing import Dict
@@ -79,7 +80,8 @@ def dump_stats(completed):
 
 def is_mounted(filepath: Path) -> bool:
     if get_local_os_type() == "win10":
-        # mounted filesystem detection not available in Windows
+        return False
+    if sys.platform == 'darwin':
         return False
     p = filepath.resolve()
     for part in p.parents:
