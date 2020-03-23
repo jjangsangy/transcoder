@@ -67,11 +67,13 @@ class FFmpeg:
 
         if proc.returncode == 0:
             # if we got here then everything went fine, so remove the transaction log
-            os.remove(str(self.log_path))
+            try:
+                os.remove(str(self.log_path))
+            except FileExistsError:
+                pass
             self.log_path = None
 
     def run(self, params, event_callback) -> Optional[int]:
-
         self.last_command = ' '.join([self.ffmpeg, *params])
         with subprocess.Popen([self.ffmpeg,
                                *params],

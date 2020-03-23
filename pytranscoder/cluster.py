@@ -392,7 +392,10 @@ class StreamingManagedHost(ManagedHost):
                         self.log(
                             f'Transcoded file {inpath} did not meet minimum savings threshold, skipped')
                         self.complete(inpath, (job_stop - job_start).seconds)
-                        os.remove(retrieved_copy_name)
+                        try:
+                            os.remove(retrieved_copy_name)
+                        except FileNotFoundError:
+                            pass
                         continue
                     self.complete(inpath, (job_stop - job_start).seconds)
 
@@ -404,7 +407,10 @@ class StreamingManagedHost(ManagedHost):
                     shutil.move(retrieved_copy_name, tmp_file)
 
                     if not pytranscoder.keep_source:
-                        os.remove(inpath)
+                        try:
+                            os.remove(inpath)
+                        except FileNotFoundError:
+                            pass
 
                     self.log(crayons.green(f'Finished {inpath}'))
                 elif code is not None:
@@ -533,13 +539,19 @@ class MountedManagedHost(ManagedHost):
                         self.log(
                             f'Transcoded file {inpath} did not meet minimum savings threshold, skipped')
                         self.complete(inpath, (job_stop - job_start).seconds)
-                        os.remove(outpath)
+                        try:
+                            os.remove(outpath)
+                        except FileNotFoundError:
+                            pass
                         continue
 
                     if not pytranscoder.keep_source:
                         if verbose:
                             self.log('removing ' + inpath)
-                        os.remove(inpath)
+                        try:
+                            os.remove(inpath)
+                        except FileNotFoundError:
+                            pass
                         if verbose:
                             self.log('renaming ' + outpath)
                         os.rename(outpath, outpath[0:-4])
@@ -550,7 +562,7 @@ class MountedManagedHost(ManagedHost):
                     self.log(f'Output can be found in {self.ffmpeg.log_path}')
                     try:
                         os.remove(outpath)
-                    except:
+                    except FileNotFoundError:
                         pass
 
             except Exception as ex:
@@ -659,13 +671,19 @@ class LocalHost(ManagedHost):
                         self.log(
                             f'Transcoded file {inpath} did not meet minimum savings threshold, skipped')
                         self.complete(inpath, (job_stop - job_start).seconds)
-                        os.remove(outpath)
+                        try:
+                            os.remove(outpath)
+                        except FileNotFoundError:
+                            pass
                         continue
 
                     if not pytranscoder.keep_source:
                         if verbose:
                             self.log('removing ' + inpath)
-                        os.remove(inpath)
+                        try:
+                            os.remove(inpath)
+                        except FileNotFoundError:
+                            pass
                         if verbose:
                             self.log('renaming ' + outpath)
                         os.rename(outpath, outpath[0:-4])
